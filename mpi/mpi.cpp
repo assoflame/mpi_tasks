@@ -12,8 +12,9 @@ void task7(int* argc, char*** argv);
 void task8(int* argc, char*** argv);
 void task9(int* argc, char*** argv);
 void task10(int* argc, char*** argv);
-void task11(int* argc, char*** argv);
-void task11_loop(int rank, int size, MPI_Comm);
+void task11and12(int* argc, char*** argv);
+void task11and12_loop(int rank, int size, MPI_Comm);
+void task13(int* argc, char*** argv);
 
 int sign(int number);
 double rnd(double min, double max);
@@ -31,7 +32,8 @@ int main(int argc, char* argv[])
 	/*task8(&argc, &argv);*/
 	/*task9(&argc, &argv);*/
 	/*task10(&argc, &argv);*/
-	task11(&argc, &argv);
+	/*task11and12(&argc, &argv);*/
+	task13(&argc, &argv);
 
 	return EXIT_SUCCESS;
 }
@@ -582,10 +584,63 @@ void task9(int* argc, char*** argv)
 
 void task10(int* argc, char*** argv)
 {
+	int size, rank;
+	MPI_Init(argc, argv);
+	MPI_Comm_size(MPI_COMM_WORLD, &size);
+	MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
+	int n = (int)1e5;
+	MPI_Status status;
+
+	int* buffer = new int[n + MPI_BSEND_OVERHEAD];
+	int bsize = sizeof(int) * (n + MPI_BSEND_OVERHEAD);
+	MPI_Buffer_attach(buffer, bsize);
+
+	if (rank == 0)
+	{
+		int* array = new int[n];
+		for (int i = 0; i < n; ++i)
+			array[i] = i;
+
+		double time = MPI_Wtime();
+
+		/*MPI_Send(&array[0], n, MPI_INT, 1, 0, MPI_COMM_WORLD);
+		MPI_Recv(&array[0], n, MPI_INT, 1, 1, MPI_COMM_WORLD, &status);
+		printf("Send time = %lf\n", MPI_Wtime() - time);*/
+
+		/*MPI_Rsend(&array[0], n, MPI_INT, 1, 0, MPI_COMM_WORLD);
+		MPI_Recv(&array[0], n, MPI_INT, 1, 1, MPI_COMM_WORLD, &status);
+		printf("Rsend time = %lf\n", MPI_Wtime() - time);*/
+
+		
+		/*MPI_Ssend(&array[0], n, MPI_INT, 1, 0, MPI_COMM_WORLD);
+		MPI_Recv(&array[0], n, MPI_INT, 1, 1, MPI_COMM_WORLD, &status);
+		printf("Ssend time = %lf\n", MPI_Wtime() - time);*/
+
+		
+		MPI_Rsend(&array[0], n, MPI_INT, 1, 0, MPI_COMM_WORLD);
+		MPI_Recv(&array[0], n, MPI_INT, 1, 1, MPI_COMM_WORLD, &status);
+		printf("Rsend time = %lf\n", MPI_Wtime() - time);
+	}
+	else {
+		int* recv = new int[n];
+
+		/*MPI_Recv(&recv[0], n, MPI_INT, 0, 0, MPI_COMM_WORLD, &status);
+		MPI_Send(&recv[0], n, MPI_INT, 0, 1, MPI_COMM_WORLD);*/
+
+		/*MPI_Recv(&recv[0], n, MPI_INT, 0, 0, MPI_COMM_WORLD, &status);
+		MPI_Rsend(&recv[0], n, MPI_INT, 0, 1, MPI_COMM_WORLD);*/
+
+		/*MPI_Recv(&recv[0], n, MPI_INT, 0, 0, MPI_COMM_WORLD, &status);
+		MPI_Send(&recv[0], n, MPI_INT, 0, 1, MPI_COMM_WORLD);*/
+
+		MPI_Recv(&recv[0], n, MPI_INT, 0, 0, MPI_COMM_WORLD, &status);
+		MPI_Bsend(&recv[0], n, MPI_INT, 0, 1, MPI_COMM_WORLD);
+	}
+	MPI_Finalize();
 }
 
-void task11(int* argc, char*** argv)
+void task11and12(int* argc, char*** argv)
 {
 	int size, rank;
 	srand(time(NULL));
@@ -593,7 +648,7 @@ void task11(int* argc, char*** argv)
 	MPI_Comm_size(MPI_COMM_WORLD, &size);
 	MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 	
-	task11_loop(rank, size, MPI_COMM_WORLD);
+	task11and12_loop(rank, size, MPI_COMM_WORLD);
 
 	MPI_Group group, newGroup;
 	MPI_Comm newComm;
@@ -606,13 +661,13 @@ void task11(int* argc, char*** argv)
 	{
 		MPI_Comm_size(newComm, &size);
 		MPI_Comm_rank(newComm, &rank);
-		task11_loop(rank, size, newComm);
+		task11and12_loop(rank, size, newComm);
 	}
 
 	MPI_Finalize();
 }
 
-void task11_loop(int rank, int size, MPI_Comm comm)
+void task11and12_loop(int rank, int size, MPI_Comm comm)
 {
 	MPI_Status status;
 	if (rank == 0)
@@ -630,6 +685,51 @@ void task11_loop(int rank, int size, MPI_Comm comm)
 		++recv;
 		MPI_Send(&recv, 1, MPI_INT, (rank + 1) % size, rank, comm);
 	}
+}
+
+void task13(int* argc, char*** argv)
+{
+	int size, rank;
+	MPI_Init(argc, argv);
+	MPI_Comm_size(MPI_COMM_WORLD, &size);
+	MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+
+	const int n = 8;
+	int localCount;
+	int result = 0;
+	int matrix[n][n];
+	for (int i = 0; i < n; ++i)
+		for (int j = 0; j < n; ++j)
+			//matrix[i][j] = i + j;
+			matrix[i][j] = i;
+
+	for (int i = 0; i < n; ++i)
+	{
+		for (int j = 0; j < n; ++j)
+			printf("%d ", matrix[i][j]);
+		printf("\n");
+	}
+
+	int* counts = new int[size];
+	int* displs = new int[size];
+	int rest = n;
+	int localCount = n / size;
+	displs[0] = 0;
+	counts[0] = localCount * n;
+	for (int i = 1; i < size; ++i)
+	{
+		rest -= localCount;
+		localCount = rest / (size - i);
+		counts[i] = localCount * n;
+		displs[i] = displs[i - 1] + counts[i - 1];
+	}
+
+	int* localRows = new int[counts[rank]];
+	int* localColumns = new int[counts[rank]];
+
+
+
+	MPI_Finalize();
 }
 
 int sign(int number)
