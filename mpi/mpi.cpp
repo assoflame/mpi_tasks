@@ -694,20 +694,28 @@ void task13(int* argc, char*** argv)
 	MPI_Comm_size(MPI_COMM_WORLD, &size);
 	MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
-	const int n = 8;
-	int localCount;
+	const int n = 5;
+
+	MPI_Datatype column, columnType;
+	MPI_Type_vector(n, 1, n, MPI_INT, &column);
+	MPI_Type_commit(&column);
+	MPI_Type_create_resized(column, 0, sizeof(int), &columnType);
+	MPI_Type_commit(&columnType);
+
 	int result = 0;
 	int matrix[n][n];
 	for (int i = 0; i < n; ++i)
 		for (int j = 0; j < n; ++j)
-			//matrix[i][j] = i + j;
-			matrix[i][j] = i;
-
-	for (int i = 0; i < n; ++i)
+			matrix[i][j] = i + j;
+			/*matrix[i][j] = i;*/
+	if (rank == 0)
 	{
-		for (int j = 0; j < n; ++j)
-			printf("%d ", matrix[i][j]);
-		printf("\n");
+		for (int i = 0; i < n; ++i)
+		{
+			for (int j = 0; j < n; ++j)
+				printf("%d ", matrix[i][j]);
+			printf("\n");
+		}
 	}
 
 	int* counts = new int[size];
@@ -715,19 +723,62 @@ void task13(int* argc, char*** argv)
 	int rest = n;
 	int localCount = n / size;
 	displs[0] = 0;
-	counts[0] = localCount * n;
+	counts[0] = localCount;
 	for (int i = 1; i < size; ++i)
 	{
 		rest -= localCount;
 		localCount = rest / (size - i);
-		counts[i] = localCount * n;
+		counts[i] = localCount;
 		displs[i] = displs[i - 1] + counts[i - 1];
 	}
 
-	int* localRows = new int[counts[rank]];
-	int* localColumns = new int[counts[rank]];
+	int localRows[n][n];
+	int localColumns[n][n];
+	localCount = counts[rank];
 
+	MPI_Scatterv(&matrix[0][0], counts, displs, columnType, &localColumns[0][0], localCount, columnType, 0, MPI_COMM_WORLD);
 
+	for (int i = 0; i < size; ++i)
+	{
+		displs[i] *= n;
+		counts[i] *= n;
+	}
+	localCount *= n;
+	MPI_Scatterv(&matrix[0][0], counts, displs, MPI_INT, &localRows[0][0], localCount, MPI_INT, 0, MPI_COMM_WORLD);
+
+	bool symmetric = true;
+	for (int i = 0; i < n; ++i)
+		for (int j = 0; j < localCount / n; ++j)
+			if (localColumns[i][j] != localRows[j][i])
+			{
+				symmetric = false;
+				break;
+			}
+	int localResult = symmetric;
+
+	MPI_Reduce(&localResult, &result, 1, MPI_INT, MPI_SUM, 0, MPI_COMM_WORLD);
+
+	if (rank == 0)
+	{
+		printf(result == size ? "matrix is symmetric\n" : "matrix is not symmetric\n");
+	}
+
+	/*printf("__________\nprocess %d:\n", rank);
+	printf("columns:\n");
+	for (int i = 0; i < n; ++i)
+	{
+		for (int j = 0; j < localCount / n; ++j)
+			printf("%d ", localColumns[i][j]);
+		printf("\n");
+	}
+	printf("rows:\n");
+	for (int i = 0; i < localCount / n; ++i)
+	{
+		for (int j = 0; j < n; ++j)
+			printf("%d ", localRows[i][j]);
+		printf("\n");
+	}
+	printf("__________\n", rank);*/
 
 	MPI_Finalize();
 }
