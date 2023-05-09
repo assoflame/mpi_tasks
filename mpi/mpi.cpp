@@ -28,12 +28,12 @@ int main(int argc, char* argv[])
 	/*task4(&argc, &argv);*/
 	/*task5(&argc, &argv);*/
 	/*task6(&argc, &argv);*/
-	/*task7(&argc, &argv);*/
+	task7(&argc, &argv);
 	/*task8(&argc, &argv);*/
 	/*task9(&argc, &argv);*/
 	/*task10(&argc, &argv);*/
 	/*task11and12(&argc, &argv);*/
-	task13(&argc, &argv);
+	/*task13(&argc, &argv);*/
 
 	return EXIT_SUCCESS;
 }
@@ -401,43 +401,105 @@ void task7(int* argc, char*** argv)
 	MPI_Comm_size(MPI_COMM_WORLD, &size);
 	MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
-	MPI_Status status;
+	const int n = 1;
+	const int m = 1;
 
-	const int n = 10;
-	const int m = 10;
+	MPI_Datatype column, columnType;
+	MPI_Type_vector(n, 1, m, MPI_INT, &column);
+	MPI_Type_commit(&column);
+	MPI_Type_create_resized(column, 0, sizeof(int), &columnType);
+	MPI_Type_commit(&columnType);
 
-	MPI_Datatype ColumnType;
-	MPI_Type_vector(n, 1, n, MPI_INT, &ColumnType);
-	MPI_Type_commit(&ColumnType);
-
+	int result = 0;
+	int matrix[n][m];
+	int vector[m];
+	int resultVector[n];
 	if (rank == 0)
 	{
-		int matrix[n][m];
 		for (int i = 0; i < n; ++i)
 			for (int j = 0; j < m; ++j)
 				matrix[i][j] = rand() % 10;
 
+		for (int i = 0; i < m; ++i)
+		{
+			vector[i] = rand() % 10;
+		}
+
+		printf("matrix:\n");
 		for (int i = 0; i < n; ++i)
 		{
+			resultVector[i] = 0;
 			for (int j = 0; j < m; ++j)
 				printf("%d ", matrix[i][j]);
 			printf("\n");
 		}
-
-		MPI_Send(&matrix[0][0], 2, ColumnType, 3, 99, MPI_COMM_WORLD);
+		printf("\nvector:\n");
+		for (int i = 0; i < m; ++i)
+			printf("%d ", vector[i]);
+		printf("\n");
 	}
-	else if (rank == 3)
-	{
-		int localMatrix[n][m];
-		MPI_Recv(&localMatrix[0][0], 2, ColumnType, 0, 99, MPI_COMM_WORLD, &status);
 
-		for (int i = 0; i < n; ++i)
+	int* counts = new int[size];
+	int* displs = new int[size];
+	int rest = m;
+	int localCount = rest / size;
+	displs[0] = 0;
+	counts[0] = localCount;
+	for (int i = 1; i < size; ++i)
+	{
+		rest -= localCount;
+		localCount = rest / (size - i);
+		counts[i] = localCount;
+		displs[i] = displs[i - 1] + counts[i - 1];
+	}
+
+	int localColumns[n][m];
+	int localVector[m];
+	localCount = counts[rank];
+
+	MPI_Scatterv(&matrix[0][0], counts, displs, columnType, &localColumns[0][0], localCount, columnType, 0, MPI_COMM_WORLD);
+	MPI_Scatterv(&vector[0], counts, displs, MPI_INT, &localVector[0], localCount, MPI_INT, 0, MPI_COMM_WORLD);
+
+	int localResult[n];
+	for (int i = 0; i < n; ++i)
+	{
+		localResult[i] = 0;
+		for (int j = 0; j < localCount; ++j)
 		{
-			for (int j = 0; j < m; ++j)
-				printf("%d ", localMatrix[i][j]);
-			printf("\n");
+			localResult[i] += localColumns[i][j] * localVector[j];
 		}
 	}
+
+	/*printf("process %d\n", rank);
+
+	printf("local columns\n");
+	for (int i = 0; i < n; ++i)
+	{
+		for (int j = 0; j < localCount; ++j)
+		{
+			printf("%d ", localColumns[i][j]);
+		}
+		printf("\n");
+	}
+
+	printf("local vector\n");
+	for (int i = 0; i < localCount; ++i)
+		printf("%d ", localVector[i]);
+	printf("\n");
+
+	for (int i = 0; i < n; ++i)
+		printf("%d ", localResult[i]);
+	printf("\n");*/
+
+	MPI_Reduce(&localResult[0], &resultVector[0], n, MPI_INT, MPI_SUM, 0, MPI_COMM_WORLD);
+
+	if (rank == 0)
+	{
+		printf("result:\n");
+		for (int i = 0; i < n; ++i)
+			printf("%d\n", resultVector[i]);
+	}
+
 
 	MPI_Finalize();
 }
@@ -704,12 +766,14 @@ void task13(int* argc, char*** argv)
 
 	int result = 0;
 	int matrix[n][n];
-	for (int i = 0; i < n; ++i)
-		for (int j = 0; j < n; ++j)
-			matrix[i][j] = i + j;
-			/*matrix[i][j] = i;*/
+	
 	if (rank == 0)
 	{
+		for (int i = 0; i < n; ++i)
+			for (int j = 0; j < n; ++j)
+				matrix[i][j] = i + j;
+		/*matrix[i][j] = i;*/
+
 		for (int i = 0; i < n; ++i)
 		{
 			for (int j = 0; j < n; ++j)
