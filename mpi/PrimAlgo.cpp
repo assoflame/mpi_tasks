@@ -105,6 +105,7 @@ int main(int argc, char** argv)
 			visited[edgeWithMinWeight.first] = true;
 			tree[i] = std::make_pair(edgeWithMinWeight.first, edgeWithMinWeight.second);
 		}
+		delete[] currentEdges;
 		MPI_Bcast(&visited[0], n, MPI_C_BOOL, 0, MPI_COMM_WORLD);
 	}
 
@@ -123,6 +124,8 @@ int main(int argc, char** argv)
 			printf("(%d, %d)\n", tree[i].first, tree[i].second);
 	}
 
+	delete[] counts;
+	delete[] displs;
 
 	MPI_Finalize();
 
