@@ -65,6 +65,7 @@ int main(int argc, char** argv)
 		printf("\ntree weight = %lu", getTreeWeight(tree, matrix));
 	}
 
+	delete[] tree;
 	delete[] counts;
 	delete[] displs;
 
@@ -91,6 +92,7 @@ void fillMatrixAndVisitedVector(int matrix[n][n], bool visited[n])
 
 void printMatrix(int matrix[n][n])
 {
+	printf("matrix\n");
 	for (int i = 0; i < n; ++i)
 	{
 		for (int j = 0; j < n; ++j)
@@ -103,10 +105,12 @@ void printMatrix(int matrix[n][n])
 unsigned long getTreeWeight(std::pair<int, int> tree[n - 1], int matrix[n][n])
 {
 	unsigned long treeWeight = 0;
+	printf("tree:\n");
 	for (int i = 0; i < n - 1; ++i)
 	{
 		treeWeight += matrix[tree[i].first][tree[i].second];
-		printf("(%d, %d)\n", tree[i].first, tree[i].second);
+		printf("(%d, %d) weight = %d\n", tree[i].first, tree[i].second,
+			matrix[tree[i].first][tree[i].second]);
 	}
 
 	return treeWeight;
@@ -156,7 +160,7 @@ std::pair<int, int> getGlobalMinWeightEdge(int size, std::pair<int, int>* curren
 {
 	std::pair<int, int> edgeWithMinWeight;
 	int minWeight = INT_MAX;
-	printf("current edges from procs:\n");
+	printf("edges from procs:\n");
 	for (int j = 0; j < size; ++j)
 	{
 		printf("(%d, %d) ", currentEdges[j].first, currentEdges[j].second);
@@ -166,7 +170,7 @@ std::pair<int, int> getGlobalMinWeightEdge(int size, std::pair<int, int>* curren
 			edgeWithMinWeight = currentEdges[j];
 		}
 	}
-	printf("\n");
+	printf("\n\n");
 
 	return edgeWithMinWeight;
 }
