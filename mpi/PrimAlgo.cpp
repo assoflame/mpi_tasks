@@ -79,12 +79,7 @@ int main(int argc, char** argv)
 				}
 			}
 		}
-		/*
-		else {
-			for (int j = 0; j < size; ++j)
-				currentEdges[j] = std::make_pair(-1, -1);
-		}*/
-		/*MPI_Barrier(MPI_COMM_WORLD);*/
+
 		MPI_Gather(&currentEdge, sizeof(std::pair<int, int>), MPI_BYTE, currentEdges, sizeof(std::pair<int, int>), MPI_BYTE, 0, MPI_COMM_WORLD);
 		if (rank == 0)
 		{
@@ -131,5 +126,3 @@ int main(int argc, char** argv)
 
 	return EXIT_SUCCESS;
 }
-
-// delete memory !!!
