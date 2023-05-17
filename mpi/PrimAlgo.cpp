@@ -2,7 +2,8 @@
 #include <mpi.h>
 #include <set>
 
-#define n 8    // |V|
+#define n 4    // |V|
+#define maxWeight 5
 
 
 int main(int argc, char** argv)
@@ -14,7 +15,7 @@ int main(int argc, char** argv)
 	MPI_Comm_size(MPI_COMM_WORLD, &size);
 
 	int matrix[n][n];
-	bool visited[n], notVisited[n];
+	bool visited[n];
 	std::pair<int, int> tree[n - 1];  // save edges that we are include in the 'minimum spanning tree' (MST), (our result)
 
 	int* counts = new int[size];
@@ -33,79 +34,90 @@ int main(int argc, char** argv)
 
 	if (rank == 0)
 	{
-		for (int i = 0; i < n; ++i)
-		{
-			notVisited[i] = true;
-			for (int j = i; j < n; ++j)
-			{
-				matrix[i][j] = i == j ? INT_MAX : rand() % 21;
-				matrix[j][i] = matrix[i][j];
-			}
-		}
-		visited[0] = true;  // 0 is the number of the first vertex we are considering (can be any from 0 to n - 1)
-		notVisited[0] = false;
-	}
-	MPI_Bcast(&matrix[0][0], n * n, MPI_INT, 0, MPI_COMM_WORLD);
-	MPI_Bcast(&visited[0], n, MPI_C_BOOL, 0, MPI_COMM_WORLD);
-	MPI_Bcast(&notVisited[0], n, MPI_C_BOOL, 0, MPI_COMM_WORLD);
-
-	for (int i = 0; i < n - 1; ++i)
-	{
-		std::pair<int, int>* currentEdges = new std::pair<int, int>[size];
-		std::pair<int, int> currentEdge;
-		if (rank != 0)
-		{
-			int minWeight = INT_MAX;
-			for (int v = 0; v < counts[rank]; ++v)
-			{
-				if (notVisited[v + displs[rank]])
-				{
-					for (int i = 0; i < n; ++i)
-					{
-						if (minWeight > matrix[v + displs[rank]][i] && visited[i])
-						{
-							minWeight = matrix[v + displs[rank]][i];
-							currentEdge = std::make_pair(v + displs[rank], i);
-						}
-					}
-				}
-			}
-		}
-		else {
-			for (int j = 0; j < size; ++j)
-				currentEdges[j] = std::make_pair(-1, -1);
-		}
-		/*MPI_Barrier(MPI_COMM_WORLD);*/
-		MPI_Gather(&currentEdge, sizeof(std::pair<int, int>), MPI_BYTE, currentEdges, sizeof(std::pair<int, int>), MPI_BYTE, 0, MPI_COMM_WORLD);
-		if (rank == 0)
-		{
-			std::pair<int, int> edgeWithMinWeight;
-			int minWeight = INT_MAX;
-			for (int i = 0; i < n; ++i)
-			{
-				if (currentEdges[i].first != -1 && minWeight > matrix[currentEdges[i].first][currentEdges[i].second])
-				{
-					minWeight = matrix[currentEdges[i].first][currentEdges[i].second];
-					edgeWithMinWeight = currentEdges[i];
-				}
-			}
-
-			visited[currentEdges[i].second] = true;
-			notVisited[currentEdges[i].first] = false;
-			tree[i] = std::make_pair(currentEdges[i].first, currentEdges[i].second);
-		}
-		MPI_Bcast(&visited[0], n, MPI_C_BOOL, 0, MPI_COMM_WORLD);
-		MPI_Bcast(&notVisited[0], n, MPI_C_BOOL, 0, MPI_COMM_WORLD);
+		printf("counts:\n");
+		for (int i = 0; i < size; ++i)
+			printf("%d ", counts[i]);
+		printf("\ndispls:\n");
+		for (int i = 0; i < size; ++i)
+			printf("%d ", displs[i]);
+		printf("\n\n");
 	}
 
 	if (rank == 0)
 	{
 		for (int i = 0; i < n; ++i)
 		{
+			visited[i] = false;
+			for (int j = i; j < n; ++j)
+			{
+				matrix[i][j] = i == j ? INT_MAX : rand() % (maxWeight + 1);
+				matrix[j][i] = matrix[i][j];
+			}
+		}
+		visited[0] = true;  // 0 is the number of the first vertex we are considering (can be any from 0 to n - 1)
+	}
+	MPI_Bcast(&matrix[0][0], n * n, MPI_INT, 0, MPI_COMM_WORLD);
+	MPI_Bcast(&visited[0], n, MPI_C_BOOL, 0, MPI_COMM_WORLD);
+
+	for (int i = 0; i < n - 1; ++i)
+	{
+		std::pair<int, int>* currentEdges = new std::pair<int, int>[size];
+		std::pair<int, int> currentEdge = std::make_pair(-1, -1);
+
+		int minWeight = INT_MAX;
+		for (int v = 0; v < counts[rank]; ++v)
+		{
+			if (!visited[v + displs[rank]])
+			{
+				for (int j = 0; j < n; ++j)
+				{
+					if (visited[j] && minWeight > matrix[v + displs[rank]][j])
+					{
+						minWeight = matrix[v + displs[rank]][j];
+						currentEdge = std::make_pair(v + displs[rank], j);
+					}
+				}
+			}
+		}
+		/*
+		else {
+			for (int j = 0; j < size; ++j)
+				currentEdges[j] = std::make_pair(-1, -1);
+		}*/
+		/*MPI_Barrier(MPI_COMM_WORLD);*/
+		MPI_Gather(&currentEdge, sizeof(std::pair<int, int>), MPI_BYTE, currentEdges, sizeof(std::pair<int, int>), MPI_BYTE, 0, MPI_COMM_WORLD);
+		if (rank == 0)
+		{
+			std::pair<int, int> edgeWithMinWeight;
+			int minWeight = INT_MAX;
+			printf("current edges from procs:\n");
+			for (int j = 0; j < size; ++j)
+			{
+				printf("(%d, %d) ", currentEdges[j].first, currentEdges[j].second);
+				if (currentEdges[j].first != -1 && minWeight > matrix[currentEdges[j].first][currentEdges[j].second])
+				{
+					minWeight = matrix[currentEdges[j].first][currentEdges[j].second];
+					edgeWithMinWeight = currentEdges[j];
+				}
+			}
+			printf("\n");
+
+			visited[edgeWithMinWeight.first] = true;
+			tree[i] = std::make_pair(edgeWithMinWeight.first, edgeWithMinWeight.second);
+		}
+		MPI_Bcast(&visited[0], n, MPI_C_BOOL, 0, MPI_COMM_WORLD);
+	}
+
+	if (rank == 0)
+	{
+		printf("\n");
+		for (int i = 0; i < n; ++i)
+		{
 			for (int j = 0; j < n; ++j)
-				printf("%d ", matrix[i][j]);
+				printf("%d ", matrix[i][j] != INT_MAX ? matrix[i][j] : -1);
 			printf("\n");
 		}
+		printf("\n");
 
 		for (int i = 0; i < n - 1; ++i)
 			printf("(%d, %d)\n", tree[i].first, tree[i].second);
@@ -116,3 +128,5 @@ int main(int argc, char** argv)
 
 	return EXIT_SUCCESS;
 }
+
+// delete memory !!!
