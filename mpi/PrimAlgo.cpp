@@ -1,54 +1,54 @@
 #include <iostream>
 #include <mpi.h>
 
-#define n 4    // |V|
+#define n 2000    // |V|
 #define maxWeight 10
+#define printInfo 1
 
 
+void fillMatrixAndVisitedVector(int** matrix, bool* visited);
 
-void fillMatrixAndVisitedVector(int matrix[n][n], bool visited[n]);
+unsigned long getTreeWeight(std::pair<int, int>* edges, int** matrix);
 
-unsigned long getTreeWeight(std::pair<int, int> edges[n - 1], int matrix[n][n]);
-
-void printMatrix(int matrix[n][n]);
+void printMatrix(int** matrix);
 
 void distributeVertices(int** counts, int** displs, int size);
 
 std::pair<int, int> getLocalMinWeightEdge(int* counts, int* displs, int rank,
-	int matrix[n][n], bool* visited);
+	int** matrix, bool* visited);
 
 std::pair<int, int> getGlobalMinWeightEdge(int size, std::pair<int, int>* currentEdges,
-	int matrix[n][n]);
+	int** matrix);
 
 std::pair<int, int>* getMinimumSpanningTree(int size, int rank, int* counts, int* displs,
-	int matrix[n][n], bool* visited);
+	int** matrix, bool* visited);
+
+void printDistribution(int* counts, int* displs, int size);
 
 
 int main(int argc, char** argv)
 {
+	setlocale(LC_ALL, "RUS");
 	int rank, size;
 	srand(time(NULL));
 	MPI_Init(&argc, &argv);
 	MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 	MPI_Comm_size(MPI_COMM_WORLD, &size);
 
-	int matrix[n][n];
+	int** matrix = (int**)malloc(n * sizeof(int*) + n * n * sizeof(int));
+	int* start = (int*)((char*)matrix + n * sizeof(int*));
+	for (int i = 0; i < n; ++i)
+		matrix[i] = start + i * n;
+
 	bool visited[n];
-	//std::pair<int, int> tree[n - 1];  // save edges that we are include in the 'minimum spanning tree' (MST), (our result)
 
 	int* counts = NULL, *displs = NULL;
 	distributeVertices(&counts, &displs, size);
 
-	/*if (rank == 0)
-	{
-		printf("counts:\n");
-		for (int i = 0; i < size; ++i)
-			printf("%d ", counts[i]);
-		printf("\ndispls:\n");
-		for (int i = 0; i < size; ++i)
-			printf("%d ", displs[i]);
-		printf("\n\n");
-	}*/
+	if (rank == 0 && printInfo)
+		printDistribution(counts, displs, size);
+
+	double startTime = MPI_Wtime();
 
 	if (rank == 0)
 	{
@@ -59,15 +59,19 @@ int main(int argc, char** argv)
 
 	std::pair<int, int>* tree = getMinimumSpanningTree(size, rank, counts, displs, matrix, visited);
 
-	if (rank == 0)
+	if (rank == 0 && printInfo)
 	{
 		printMatrix(matrix);
-		printf("\ntree weight = %lu", getTreeWeight(tree, matrix));
+		printf("\ntree weight = %lu\n", getTreeWeight(tree, matrix));
 	}
+
+	if(rank == 0)
+		printf("\ntime = %lf", MPI_Wtime() - startTime);
 
 	delete[] tree;
 	delete[] counts;
 	delete[] displs;
+	free(matrix);
 
 	MPI_Finalize();
 
@@ -76,7 +80,7 @@ int main(int argc, char** argv)
 
 
 
-void fillMatrixAndVisitedVector(int matrix[n][n], bool visited[n])
+void fillMatrixAndVisitedVector(int** matrix, bool* visited)
 {
 	for (int i = 0; i < n; ++i)
 	{
@@ -90,7 +94,7 @@ void fillMatrixAndVisitedVector(int matrix[n][n], bool visited[n])
 	visited[0] = true;  // 0 is the number of the first vertex we are considering (can be any from 0 to n - 1)
 }
 
-void printMatrix(int matrix[n][n])
+void printMatrix(int** matrix)
 {
 	printf("matrix\n");
 	for (int i = 0; i < n; ++i)
@@ -102,15 +106,16 @@ void printMatrix(int matrix[n][n])
 	printf("\n");
 }
 
-unsigned long getTreeWeight(std::pair<int, int> tree[n - 1], int matrix[n][n])
+unsigned long getTreeWeight(std::pair<int, int>* tree, int** matrix)
 {
 	unsigned long treeWeight = 0;
 	printf("tree:\n");
 	for (int i = 0; i < n - 1; ++i)
 	{
 		treeWeight += matrix[tree[i].first][tree[i].second];
-		printf("(%d, %d) weight = %d\n", tree[i].first, tree[i].second,
-			matrix[tree[i].first][tree[i].second]);
+		if(printInfo)
+			printf("(%d, %d) weight = %d\n", tree[i].first, tree[i].second,
+				matrix[tree[i].first][tree[i].second]);
 	}
 
 	return treeWeight;
@@ -133,7 +138,7 @@ void distributeVertices(int** counts, int** displs, int size)
 	}
 }
 
-std::pair<int, int> getLocalMinWeightEdge(int* counts, int* displs, int rank, int matrix[n][n], bool* visited)
+std::pair<int, int> getLocalMinWeightEdge(int* counts, int* displs, int rank, int** matrix, bool* visited)
 {
 	std::pair<int, int> currentEdge = std::make_pair(-1, -1);
 
@@ -156,31 +161,34 @@ std::pair<int, int> getLocalMinWeightEdge(int* counts, int* displs, int rank, in
 	return currentEdge;
 }
 
-std::pair<int, int> getGlobalMinWeightEdge(int size, std::pair<int, int>* currentEdges, int matrix[n][n])
+std::pair<int, int> getGlobalMinWeightEdge(int size, std::pair<int, int>* currentEdges, int** matrix)
 {
 	std::pair<int, int> edgeWithMinWeight;
 	int minWeight = INT_MAX;
-	printf("edges from procs:\n");
+	if(printInfo)
+		printf("edges from procs:\n");
 	for (int j = 0; j < size; ++j)
 	{
-		printf("(%d, %d) ", currentEdges[j].first, currentEdges[j].second);
+		if(printInfo)
+			printf("(%d, %d) ", currentEdges[j].first, currentEdges[j].second);
 		if (currentEdges[j].first != -1 && minWeight > matrix[currentEdges[j].first][currentEdges[j].second])
 		{
 			minWeight = matrix[currentEdges[j].first][currentEdges[j].second];
 			edgeWithMinWeight = currentEdges[j];
 		}
 	}
-	printf("\n\n");
+	if(printInfo)
+		printf("\n\n");
 
 	return edgeWithMinWeight;
 }
 
-std::pair<int, int>* getMinimumSpanningTree(int size, int rank, int* counts, int* displs, int matrix[n][n], bool* visited)
+std::pair<int, int>* getMinimumSpanningTree(int size, int rank, int* counts, int* displs, int** matrix, bool* visited)
 {
 	std::pair<int, int>* tree = new std::pair<int, int>[n - 1];
 	for (int i = 0; i < n - 1; ++i)
 	{
-		if(rank == 0)
+		if(rank == 0 && printInfo)
 			printf("iteration %d\n", i);
 		std::pair<int, int>* currentEdges = new std::pair<int, int>[size];
 		std::pair<int, int> currentEdge = getLocalMinWeightEdge(counts, displs, rank, matrix, visited);
@@ -193,10 +201,21 @@ std::pair<int, int>* getMinimumSpanningTree(int size, int rank, int* counts, int
 			visited[edgeWithMinWeight.first] = true;
 			tree[i] = std::make_pair(edgeWithMinWeight.first, edgeWithMinWeight.second);
 		}
-
-		delete[] currentEdges;
 		MPI_Bcast(&visited[0], n, MPI_C_BOOL, 0, MPI_COMM_WORLD);
+		delete[] currentEdges;
 	}
 
 	return tree;
+}
+
+
+void printDistribution(int* counts, int* displs, int size)
+{
+	printf("distribution\ncounts:\n");
+	for (int i = 0; i < size; ++i)
+		printf("%d ", counts[i]);
+	printf("\ndispls:\n");
+	for (int i = 0; i < size; ++i)
+		printf("%d ", displs[i]);
+	printf("\n\n");
 }
