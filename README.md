@@ -8,3 +8,5 @@
 
 ![](graphic.jpg)
 
+![](table.jpg)
+
