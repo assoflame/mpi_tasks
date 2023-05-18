@@ -3,7 +3,6 @@
 
 void task1(int* argc, char*** argv);
 void task2(int* argc, char*** argv);
-void task2_with_reduction(int* argc, char*** argv);
 void task3(int* argc, char*** argv);
 void task4(int* argc, char*** argv);
 void task5(int* argc, char*** argv);
@@ -23,7 +22,7 @@ int main(int argc, char* argv[])
 {
 	//task1(&argc, &argv);
 	//task2(&argc, &argv);
-	//task2_with_reduction(&argc, &argv);
+	task2(&argc, &argv);
 	//task3(&argc, &argv);
 	//task4(&argc, &argv);
 	//task5(&argc, &argv);
@@ -31,7 +30,7 @@ int main(int argc, char* argv[])
 	//task7(&argc, &argv);
 	//task8(&argc, &argv);
 	//task9(&argc, &argv);
-	task10(&argc, &argv);
+	//task10(&argc, &argv);
 	//task11and12(&argc, &argv);
 	//task13(&argc, &argv);
 
@@ -58,81 +57,53 @@ void task2(int* argc, char*** argv)
 	MPI_Comm_size(MPI_COMM_WORLD, &size);
 	MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
-	const int arrayLength = 25;
-	int singleProcessCount = arrayLength / size + sign(arrayLength % size);
+	const int arrayLength = 16;
+	int* counts = new int[size];
+	int* displs = new int[size];
+	int rest = arrayLength;
+	int proccesN = rest / size;
+	displs[0] = 0;
+	counts[0] = proccesN;
+	for (int i = 1; i < size; ++i)
+	{
+		rest -= proccesN;
+		proccesN = rest / (size - i);
+		counts[i] = proccesN;
+		displs[i] = displs[i - 1] + counts[i - 1];
+	}
+
+	int* singleProcessArray = new int[counts[rank]];
+	int singleProcessCount = counts[rank];
+	//if (rank == 0)
+	//{
+	//	printf("counts\n");
+	//	for (int i = 0; i < size; ++i)
+	//		printf("%d ", counts[i]);
+	//	printf("\n");
+	//	for (int i = 0; i < size; ++i)
+	//		printf("%d ", displs[i]);
+	//}
+
 	int mainArray[arrayLength];
-	int* array = new int[singleProcessCount];
-	int* result = new int[size];
-
-	for (int i = 0; i < arrayLength; ++i)
-		mainArray[i] = rand() % 15;
-
-	MPI_Scatter(&mainArray[0], singleProcessCount, MPI_INT, &array[0], singleProcessCount, MPI_INT, 0, MPI_COMM_WORLD);
-	
-	int max = array[0];
-	for (int i = 1; i < singleProcessCount; ++i)
-		if (max < array[i])
-			max = array[i];
-
-	std::cout << "process " << rank << std::endl;
-	for (int i = 0; i < singleProcessCount; ++i)
-		std::cout << array[i] << " ";
-	std::cout << std::endl;
-
-	MPI_Gather(&max, 1, MPI_INT, &result[0], 1, MPI_INT, 0, MPI_COMM_WORLD);
+	int result = 0;
 
 	if (rank == 0)
 	{
 		for (int i = 0; i < arrayLength; ++i)
-			std::cout << mainArray[i] << " ";
-		std::cout << std::endl;
-		
-		for (int i = 0; i < size; ++i)
-			std::cout << result[i] << " ";
-		std::cout << std::endl;
-
-		int mainMax = result[0];
-		for (int i = 1; i < size; ++i)
-			if (mainMax < result[i])
-				mainMax = result[i];
-
-		std::cout << "max = " << mainMax;
+			mainArray[i] = rand() % 15;
 	}
+	MPI_Scatterv(mainArray, counts, displs, MPI_INT, singleProcessArray, singleProcessCount, MPI_INT, 0, MPI_COMM_WORLD);
 
-	delete[] result;
-	delete[] array;
-
-	MPI_Finalize();
-}
-
-void task2_with_reduction(int* argc, char*** argv)
-{
-	srand(time(NULL));
-	int rank, size;
-	MPI_Init(argc, argv);
-	MPI_Comm_size(MPI_COMM_WORLD, &size);
-	MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-
-	const int arrayLength = 25;
-	int singleProcessCount = arrayLength / size + sign(arrayLength % size);
-	int mainArray[arrayLength];
-	int* array = new int[singleProcessCount];
-	int result = 0;
-
-	for (int i = 0; i < arrayLength; ++i)
-		mainArray[i] = rand() % 15;
-
-	MPI_Scatter(&mainArray[0], singleProcessCount, MPI_INT, &array[0], singleProcessCount, MPI_INT, 0, MPI_COMM_WORLD);
-
-	int max = array[0];
+	int max = singleProcessArray[0];
 	for (int i = 1; i < singleProcessCount; ++i)
-		if (max < array[i])
-			max = array[i];
+		if (max < singleProcessArray[i])
+			max = singleProcessArray[i];
 
-	std::cout << "process " << rank << std::endl;
+	
+	printf("process %d\n", rank);
 	for (int i = 0; i < singleProcessCount; ++i)
-		std::cout << array[i] << " ";
-	std::cout << std::endl;
+		printf("%d ", singleProcessArray[i]);
+	printf("\n");
 
 	MPI_Reduce(&max, &result, 1, MPI_INT, MPI_MAX, 0, MPI_COMM_WORLD);
 
@@ -141,10 +112,11 @@ void task2_with_reduction(int* argc, char*** argv)
 		std::cout << "max = " << result << std::endl;
 	}
 
-	delete[] array;
+	delete[] singleProcessArray;
+	delete[] counts;
+	delete[] displs;
 
 	MPI_Finalize();
-
 }
 
 void task3(int* argc, char*** argv)
@@ -857,15 +829,6 @@ void task13(int* argc, char*** argv)
 	printf("__________\n", rank);*/
 
 	MPI_Finalize();
-}
-
-int sign(int number)
-{
-	return number > 0
-		? 1
-		: number == 0
-			? 0
-			: -1;
 }
 
 double rnd(double min, double max)
