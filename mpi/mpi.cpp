@@ -21,19 +21,19 @@ double rnd(double min, double max);
 
 int main(int argc, char* argv[])
 {
-	/*task1(&argc, &argv);*/
+	//task1(&argc, &argv);
 	//task2(&argc, &argv);
-	/*task2_with_reduction(&argc, &argv);*/
-	/*task3(&argc, &argv);*/
-	/*task4(&argc, &argv);*/
-	/*task5(&argc, &argv);*/
-	/*task6(&argc, &argv);*/
-	task7(&argc, &argv);
-	/*task8(&argc, &argv);*/
-	/*task9(&argc, &argv);*/
-	/*task10(&argc, &argv);*/
-	/*task11and12(&argc, &argv);*/
-	/*task13(&argc, &argv);*/
+	//task2_with_reduction(&argc, &argv);
+	//task3(&argc, &argv);
+	//task4(&argc, &argv);
+	//task5(&argc, &argv);
+	//task6(&argc, &argv);
+	//task7(&argc, &argv);
+	//task8(&argc, &argv);
+	//task9(&argc, &argv);
+	task10(&argc, &argv);
+	//task11and12(&argc, &argv);
+	//task13(&argc, &argv);
 
 	return EXIT_SUCCESS;
 }
@@ -321,7 +321,7 @@ void task6(int* argc, char*** argv)
 	MPI_Comm_size(MPI_COMM_WORLD, &size);
 	MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
-	const int n = 18, m = 5;
+	const int n = 9, m = 9;
 	int matrix[n][m];
 	int globalMaxMin = INT_MIN;
 
@@ -351,7 +351,7 @@ void task6(int* argc, char*** argv)
 	for (int i = 0; i < counts[rank] / m; ++i)
 	{
 		for (int j = 0; j < m; ++j)
-			printf("%d ", localMatrix[i + j]);
+			printf("%d ", localMatrix[i * m + j]);
 		printf("\n");
 	}
 	printf("\n");
@@ -401,8 +401,8 @@ void task7(int* argc, char*** argv)
 	MPI_Comm_size(MPI_COMM_WORLD, &size);
 	MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
-	const int n = 1;
-	const int m = 1;
+	const int n = 2;
+	const int m = 2;
 
 	MPI_Datatype column, columnType;
 	MPI_Type_vector(n, 1, m, MPI_INT, &column);
@@ -435,7 +435,7 @@ void task7(int* argc, char*** argv)
 		}
 		printf("\nvector:\n");
 		for (int i = 0; i < m; ++i)
-			printf("%d ", vector[i]);
+			printf("%d\n", vector[i]);
 		printf("\n");
 	}
 
@@ -502,6 +502,9 @@ void task7(int* argc, char*** argv)
 
 
 	MPI_Finalize();
+
+	delete[] counts;
+	delete[] displs;
 }
 
 void task8(int* argc, char*** argv)
@@ -551,6 +554,9 @@ void task8(int* argc, char*** argv)
 			printf("%d ", lastVector[i]);
 
 		printf("}\n");
+
+		delete[] localVector;
+		delete[] lastVector;
 	}
 	else {
 		int* localVector = new int[n / size];
@@ -562,6 +568,8 @@ void task8(int* argc, char*** argv)
 		printf("\n");
 
 		MPI_Send(localVector, n / size, MPI_INT, 0, rank, MPI_COMM_WORLD);
+
+		delete[] localVector;
 	}
 
 	MPI_Finalize();
@@ -641,6 +649,10 @@ void task9(int* argc, char*** argv)
 		printf("\n");
 	}
 
+	delete[] localVector;
+	delete[] displs;
+	delete[] counts;
+
 	MPI_Finalize();
 }
 
@@ -675,14 +687,14 @@ void task10(int* argc, char*** argv)
 		printf("Rsend time = %lf\n", MPI_Wtime() - time);*/
 
 		
-		/*MPI_Ssend(&array[0], n, MPI_INT, 1, 0, MPI_COMM_WORLD);
+		MPI_Ssend(&array[0], n, MPI_INT, 1, 0, MPI_COMM_WORLD);
 		MPI_Recv(&array[0], n, MPI_INT, 1, 1, MPI_COMM_WORLD, &status);
-		printf("Ssend time = %lf\n", MPI_Wtime() - time);*/
+		printf("Ssend time = %lf\n", MPI_Wtime() - time);
 
 		
-		MPI_Rsend(&array[0], n, MPI_INT, 1, 0, MPI_COMM_WORLD);
+		/*MPI_Bsend(&array[0], n, MPI_INT, 1, 0, MPI_COMM_WORLD);
 		MPI_Recv(&array[0], n, MPI_INT, 1, 1, MPI_COMM_WORLD, &status);
-		printf("Rsend time = %lf\n", MPI_Wtime() - time);
+		printf("Bsend time = %lf\n", MPI_Wtime() - time);*/
 	}
 	else {
 		int* recv = new int[n];
@@ -693,11 +705,11 @@ void task10(int* argc, char*** argv)
 		/*MPI_Recv(&recv[0], n, MPI_INT, 0, 0, MPI_COMM_WORLD, &status);
 		MPI_Rsend(&recv[0], n, MPI_INT, 0, 1, MPI_COMM_WORLD);*/
 
-		/*MPI_Recv(&recv[0], n, MPI_INT, 0, 0, MPI_COMM_WORLD, &status);
-		MPI_Send(&recv[0], n, MPI_INT, 0, 1, MPI_COMM_WORLD);*/
-
 		MPI_Recv(&recv[0], n, MPI_INT, 0, 0, MPI_COMM_WORLD, &status);
-		MPI_Bsend(&recv[0], n, MPI_INT, 0, 1, MPI_COMM_WORLD);
+		MPI_Ssend(&recv[0], n, MPI_INT, 0, 1, MPI_COMM_WORLD);
+
+	/*	MPI_Recv(&recv[0], n, MPI_INT, 0, 0, MPI_COMM_WORLD, &status);
+		MPI_Bsend(&recv[0], n, MPI_INT, 0, 1, MPI_COMM_WORLD);*/
 	}
 	MPI_Finalize();
 }
