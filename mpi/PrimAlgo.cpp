@@ -1,9 +1,9 @@
 #include <iostream>
 #include <mpi.h>
 
-#define n 2000    // |V|
+#define n 12000    // |V|
 #define maxWeight 10
-#define printInfo 1
+#define printInfo 0
 
 
 void fillMatrixAndVisitedVector(int** matrix, bool* visited);
@@ -36,42 +36,44 @@ int main(int argc, char** argv)
 	MPI_Comm_size(MPI_COMM_WORLD, &size);
 
 	int** matrix = (int**)malloc(n * sizeof(int*) + n * n * sizeof(int));
-	int* start = (int*)((char*)matrix + n * sizeof(int*));
-	for (int i = 0; i < n; ++i)
-		matrix[i] = start + i * n;
+	if (matrix) {
+		int* start = (int*)((char*)matrix + n * sizeof(int*));
+		for (int i = 0; i < n; ++i)
+			matrix[i] = start + i * n;
 
-	bool visited[n];
+		bool visited[n];
 
-	int* counts = NULL, *displs = NULL;
-	distributeVertices(&counts, &displs, size);
+		int* counts = NULL, * displs = NULL;
+		distributeVertices(&counts, &displs, size);
 
-	if (rank == 0 && printInfo)
-		printDistribution(counts, displs, size);
+		if (rank == 0 && printInfo)
+			printDistribution(counts, displs, size);
 
-	double startTime = MPI_Wtime();
+		double startTime = MPI_Wtime();
 
-	if (rank == 0)
-	{
-		fillMatrixAndVisitedVector(matrix, visited);
+		if (rank == 0)
+		{
+			fillMatrixAndVisitedVector(matrix, visited);
+		}
+		MPI_Bcast(&matrix[0][0], n * n, MPI_INT, 0, MPI_COMM_WORLD);
+		MPI_Bcast(&visited[0], n, MPI_C_BOOL, 0, MPI_COMM_WORLD);
+
+		std::pair<int, int>* tree = getMinimumSpanningTree(size, rank, counts, displs, matrix, visited);
+
+		if (rank == 0 && printInfo)
+		{
+			printMatrix(matrix);
+			printf("\ntree weight = %lu\n", getTreeWeight(tree, matrix));
+		}
+
+		if (rank == 0)
+			printf("\ntime = %lf", MPI_Wtime() - startTime);
+
+		delete[] tree;
+		delete[] counts;
+		delete[] displs;
+		free(matrix);
 	}
-	MPI_Bcast(&matrix[0][0], n * n, MPI_INT, 0, MPI_COMM_WORLD);
-	MPI_Bcast(&visited[0], n, MPI_C_BOOL, 0, MPI_COMM_WORLD);
-
-	std::pair<int, int>* tree = getMinimumSpanningTree(size, rank, counts, displs, matrix, visited);
-
-	if (rank == 0 && printInfo)
-	{
-		printMatrix(matrix);
-		printf("\ntree weight = %lu\n", getTreeWeight(tree, matrix));
-	}
-
-	if(rank == 0)
-		printf("\ntime = %lf", MPI_Wtime() - startTime);
-
-	delete[] tree;
-	delete[] counts;
-	delete[] displs;
-	free(matrix);
 
 	MPI_Finalize();
 
@@ -193,7 +195,8 @@ std::pair<int, int>* getMinimumSpanningTree(int size, int rank, int* counts, int
 		std::pair<int, int>* currentEdges = new std::pair<int, int>[size];
 		std::pair<int, int> currentEdge = getLocalMinWeightEdge(counts, displs, rank, matrix, visited);
 
-		MPI_Gather(&currentEdge, sizeof(std::pair<int, int>), MPI_BYTE, currentEdges, sizeof(std::pair<int, int>), MPI_BYTE, 0, MPI_COMM_WORLD);
+		MPI_Gather(&currentEdge, sizeof(std::pair<int, int>), MPI_BYTE, currentEdges, sizeof(std::pair<int, int>),
+			MPI_BYTE, 0, MPI_COMM_WORLD);
 
 		if (rank == 0)
 		{
